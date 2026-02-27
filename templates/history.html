@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Story History — Mad Libs!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Patrick+Hand&family=Permanent+Marker&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1a0a00; --paper: #fef9ec; --yellow: #ffe438;
+      --red: #e8132a; --blue: #1952d3; --green: #22a352;
+      --border: 3px solid var(--ink); --shadow: 5px 5px 0 var(--ink);
+    }
+    body { background-color: var(--paper); background-image: radial-gradient(circle, #ddd 1px, transparent 1px); background-size: 22px 22px; font-family: 'Patrick Hand', cursive; color: var(--ink); min-height: 100vh; }
+
+    header { background: var(--yellow); border-bottom: var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 0 var(--ink); }
+    .logo { font-family: 'Bangers', cursive; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: 4px; color: var(--ink); text-shadow: 3px 3px 0 var(--red); padding: 10px 0; }
+    .logo span { color: var(--red); text-shadow: 3px 3px 0 var(--blue); }
+    .btn-sm { font-family: 'Bangers', cursive; font-size: 1rem; letter-spacing: 1.5px; padding: 6px 14px; border: var(--border); cursor: pointer; box-shadow: 3px 3px 0 var(--ink); transition: transform .1s, box-shadow .1s; background: var(--ink); color: var(--yellow); text-decoration: none; display: inline-block; }
+    .btn-sm:hover { transform: translate(-1px,-1px); box-shadow: 5px 5px 0 var(--ink); }
+
+    .page { max-width: 900px; margin: 36px auto; padding: 0 24px; }
+    .page-title { font-family: 'Bangers', cursive; font-size: 3rem; letter-spacing: 4px; color: var(--red); text-shadow: 4px 4px 0 var(--ink); margin-bottom: 6px; }
+    .page-subtitle { font-size: 1.1rem; color: #666; margin-bottom: 28px; }
+
+    /* Story card */
+    .story-card { background: #fff9f0; border: var(--border); box-shadow: var(--shadow); margin-bottom: 24px; position: relative; animation: popIn .3s ease both; }
+    @keyframes popIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .card-header { background: var(--blue); color: #fff; padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .card-title  { font-family: 'Bangers', cursive; font-size: 1.4rem; letter-spacing: 2px; }
+    .card-meta   { font-size: .85rem; color: #aac4ff; }
+
+    .card-body { padding: 18px 22px; line-height: 1.8; font-size: 1.05rem; white-space: pre-wrap; }
+
+    .answer-word { color: var(--red); font-family: 'Permanent Marker', cursive; background: #fff3c4; padding: 0 3px; border-bottom: 2px solid var(--red); display: inline-block; }
+
+    .card-footer { padding: 10px 18px; border-top: var(--border); background: #fff8e8; display: flex; gap: 10px; align-items: center; }
+
+    .btn-delete { font-family: 'Bangers', cursive; font-size: .95rem; letter-spacing: 1px; padding: 5px 12px; border: 2px solid var(--red); background: #fff; color: var(--red); cursor: pointer; box-shadow: 3px 3px 0 var(--red); transition: transform .1s, box-shadow .1s; }
+    .btn-delete:hover  { transform: translate(-1px,-1px); box-shadow: 5px 5px 0 var(--red); background: var(--red); color: #fff; }
+    .btn-delete:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 var(--red); }
+
+    .btn-play-again { font-family: 'Bangers', cursive; font-size: .95rem; letter-spacing: 1px; padding: 5px 12px; border: 2px solid var(--green); background: #fff; color: var(--green); cursor: pointer; box-shadow: 3px 3px 0 var(--green); transition: transform .1s, box-shadow .1s; text-decoration: none; display: inline-block; }
+    .btn-play-again:hover { transform: translate(-1px,-1px); box-shadow: 5px 5px 0 var(--green); background: var(--green); color: #fff; }
+
+    /* Empty / not logged in states */
+    .empty-state { text-align: center; padding: 60px 20px; }
+    .empty-state .big-emoji { font-size: 4rem; margin-bottom: 16px; }
+    .empty-state h3 { font-family: 'Bangers', cursive; font-size: 2rem; letter-spacing: 3px; color: var(--ink); margin-bottom: 8px; }
+    .empty-state p  { color: #888; font-size: 1rem; }
+
+    .not-logged { background: var(--yellow); border: var(--border); box-shadow: var(--shadow); padding: 28px 32px; text-align: center; }
+    .not-logged h3 { font-family: 'Bangers', cursive; font-size: 1.8rem; letter-spacing: 2px; margin-bottom: 8px; }
+
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f0e8d0; border-left: 2px solid var(--ink); }
+    ::-webkit-scrollbar-thumb { background: var(--ink); }
+
+    footer { text-align: center; padding: 20px; font-size: .85rem; color: #888; border-top: 2px dashed #ccc; margin-top: 20px; }
+    footer a { color: var(--blue); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">✦ Mad <span>Libs!</span> ✦</div>
+  <a href="/" class="btn-sm">◀ BACK TO GAME</a>
+</header>
+
+<div class="page">
+  <div class="page-title">📜 STORY HISTORY</div>
+  <div class="page-subtitle" id="pageSubtitle">Loading...</div>
+  <div id="content"></div>
+</div>
+
+<footer><a href="/">◀ Back to game</a> &nbsp;|&nbsp; <a href="/achievements">🏅 Achievements</a></footer>
+
+<script>
+  async function load() {
+    const meRes = await fetch('/api/me');
+    const me    = await meRes.json();
+
+    if (!me.user) {
+      document.getElementById('pageSubtitle').textContent = '';
+      document.getElementById('content').innerHTML = `
+        <div class="not-logged">
+          <h3>⚠️ NOT LOGGED IN</h3>
+          <p>Go back and log in to see your story history!</p>
+        </div>`;
+      return;
+    }
+
+    const res  = await fetch('/api/history');
+    const data = await res.json();
+
+    document.getElementById('pageSubtitle').textContent =
+      `${data.length} stor${data.length === 1 ? 'y' : 'ies'} saved for ${me.user.username}`;
+
+    const content = document.getElementById('content');
+
+    if (data.length === 0) {
+      content.innerHTML = `
+        <div class="empty-state">
+          <div class="big-emoji">📭</div>
+          <h3>NO STORIES YET!</h3>
+          <p>Go generate some Mad Libs and they'll show up here.</p>
+        </div>`;
+      return;
+    }
+
+    data.forEach((entry, i) => {
+      const card = document.createElement('div');
+      card.className = 'story-card';
+      card.style.animationDelay = `${i * 60}ms`;
+      card.id = `card-${entry.id}`;
+
+      const date = new Date(entry.created_at).toLocaleString();
+      card.innerHTML = `
+        <div class="card-header">
+          <div class="card-title">📖 ${escHtml(entry.title)}</div>
+          <div class="card-meta">${date}</div>
+        </div>
+        <div class="card-body">${highlightAnswers(entry.completed_story, entry.answers)}</div>
+        <div class="card-footer">
+          <a href="/?story=${escHtml(entry.slug)}" class="btn-play-again">▶ PLAY AGAIN</a>
+          <button class="btn-delete" onclick="deleteStory(${entry.id})">🗑 DELETE</button>
+        </div>
+      `;
+      content.appendChild(card);
+    });
+  }
+
+  function highlightAnswers(story, answers) {
+    let html = '';
+    let remaining = story;
+    for (const ans of answers) {
+      const idx = remaining.indexOf(ans);
+      if (idx === -1) continue;
+      html += escHtml(remaining.slice(0, idx));
+      html += `<span class="answer-word">${escHtml(ans)}</span>`;
+      remaining = remaining.slice(idx + ans.length);
+    }
+    html += escHtml(remaining);
+    return html;
+  }
+
+  async function deleteStory(id) {
+    if (!confirm('Delete this story?')) return;
+    await fetch(`/api/history/${id}`, { method: 'DELETE' });
+    const card = document.getElementById(`card-${id}`);
+    if (card) { card.style.opacity = '0'; card.style.transform = 'scale(.95)'; card.style.transition = '.2s'; setTimeout(() => card.remove(), 200); }
+  }
+
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  load();
+</script>
+</body>
+</html>

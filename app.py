@@ -3,6 +3,7 @@ import re
 import os
 import glob
 import sqlite3
+import json
 from datetime import datetime
 
 app = Flask(__name__)
@@ -64,6 +65,15 @@ def init_db():
                 user_id        INTEGER PRIMARY KEY,
                 stories_played INTEGER DEFAULT 0,
                 slugs_played   TEXT DEFAULT ''
+            );
+            CREATE TABLE IF NOT EXISTS completed_stories (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id          INTEGER,
+                slug             TEXT NOT NULL,
+                title            TEXT NOT NULL,
+                answers          TEXT NOT NULL,
+                completed_story  TEXT NOT NULL,
+                created_at       TEXT NOT NULL
             );
         """)
 
@@ -214,6 +224,11 @@ def api_generate():
             if "user_id" in session:
                 with get_db() as db:
                     new_achievements = check_achievements(session["user_id"], answers, slug, db)
+                    db.execute(
+                        "INSERT INTO completed_stories (user_id, slug, title, answers, completed_story, created_at) VALUES (?,?,?,?,?,?)",
+                        (session["user_id"], slug, s["title"], json.dumps(answers), filled, datetime.utcnow().isoformat())
+                    )
+                    db.commit()
 
             return jsonify({"story": filled, "title": s["title"],
                             "new_achievements": new_achievements})
@@ -240,6 +255,38 @@ def api_stats():
         row = db.execute("SELECT stories_played FROM user_stats WHERE user_id=?",
                          (session["user_id"],)).fetchone()
     return jsonify({"stories_played": row["stories_played"] if row else 0})
+
+# History
+@app.route("/history")
+def history_page():
+    return render_template("history.html")
+
+@app.route("/api/history")
+def api_history():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT id, slug, title, answers, completed_story, created_at FROM completed_stories WHERE user_id=? ORDER BY created_at DESC",
+            (session["user_id"],)).fetchall()
+    return jsonify([{
+        "id":              r["id"],
+        "slug":            r["slug"],
+        "title":           r["title"],
+        "answers":         json.loads(r["answers"]),
+        "completed_story": r["completed_story"],
+        "created_at":      r["created_at"],
+    } for r in rows])
+
+@app.route("/api/history/<int:story_id>", methods=["DELETE"])
+def api_delete_story(story_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    with get_db() as db:
+        db.execute("DELETE FROM completed_stories WHERE id=? AND user_id=?",
+                   (story_id, session["user_id"]))
+        db.commit()
+    return jsonify({"ok": True})
 
 if __name__ == "__main__":
     app.run(debug=True)
