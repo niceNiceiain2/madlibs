@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mad Libs!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Patrick+Hand&family=Permanent+Marker&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1a0a00; --paper: #fef9ec; --yellow: #ffe438;
+      --red: #e8132a; --blue: #1952d3; --green: #22a352;
+      --panel-bg: #fff9f0; --border: 3px solid var(--ink);
+      --shadow: 5px 5px 0 var(--ink); --shadow-lg: 8px 8px 0 var(--ink);
+    }
+    body { background-color: var(--paper); background-image: radial-gradient(circle, #ddd 1px, transparent 1px); background-size: 22px 22px; font-family: 'Patrick Hand', cursive; color: var(--ink); min-height: 100vh; }
+
+    /* Header */
+    header { background: var(--yellow); border-bottom: var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; box-shadow: 0 4px 0 var(--ink); position: sticky; top: 0; z-index: 100; }
+    .logo { font-family: 'Bangers', cursive; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: 4px; color: var(--ink); text-shadow: 3px 3px 0 var(--red); padding: 10px 0; user-select: none; }
+    .logo span { color: var(--red); text-shadow: 3px 3px 0 var(--blue); }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .user-info { font-family: 'Bangers', cursive; font-size: 1rem; letter-spacing: 1px; color: var(--ink); }
+    .btn-sm { font-family: 'Bangers', cursive; font-size: 1rem; letter-spacing: 1.5px; padding: 6px 14px; border: var(--border); cursor: pointer; box-shadow: 3px 3px 0 var(--ink); transition: transform .1s, box-shadow .1s; background: var(--ink); color: var(--yellow); }
+    .btn-sm:hover { transform: translate(-1px,-1px); box-shadow: 5px 5px 0 var(--ink); }
+    .btn-sm:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 var(--ink); }
+    .btn-sm.outline { background: transparent; color: var(--ink); }
+
+    /* Story bar */
+    .story-bar { background: var(--blue); border-bottom: var(--border); padding: 12px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .story-bar label { font-family: 'Bangers', cursive; font-size: 1.3rem; letter-spacing: 2px; color: var(--yellow); }
+    .story-select { font-family: 'Patrick Hand', cursive; font-size: 1rem; padding: 6px 36px 6px 14px; border: var(--border); background: var(--paper); color: var(--ink); box-shadow: var(--shadow); cursor: pointer; outline: none; border-radius: 0; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M0 0l6 8 6-8z' fill='%231a0a00'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; transition: transform .1s, box-shadow .1s; }
+    .story-select:hover { transform: translate(-2px,-2px); box-shadow: 7px 7px 0 var(--ink); }
+
+    /* Layout */
+    .main { display: grid; grid-template-columns: 1fr 1fr; gap: 0; max-width: 1300px; margin: 28px auto; padding: 0 24px; }
+    @media (max-width: 820px) { .main { grid-template-columns: 1fr; } }
+
+    /* Panel */
+    .panel { background: var(--panel-bg); border: var(--border); box-shadow: var(--shadow-lg); margin: 8px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    .panel::before { content: ''; position: absolute; top: 0; right: 0; width: 80px; height: 80px; background-image: radial-gradient(circle, rgba(0,0,0,.08) 1px, transparent 1px); background-size: 8px 8px; pointer-events: none; }
+    .panel-header { font-family: 'Bangers', cursive; font-size: 1.4rem; letter-spacing: 3px; padding: 10px 18px; border-bottom: var(--border); display: flex; align-items: center; gap: 10px; }
+    .panel-header.left-color  { background: var(--red);   color: #fff; }
+    .panel-header.right-color { background: var(--green); color: #fff; }
+    .badge { display: inline-block; background: var(--ink); color: var(--yellow); font-family: 'Bangers', cursive; font-size: .85rem; letter-spacing: 1px; padding: 2px 8px; border-radius: 20px; margin-left: 6px; }
+
+    /* Blanks */
+    .blanks-container { padding: 16px 20px; flex: 1; overflow-y: auto; max-height: 60vh; }
+    .blank-row { margin-bottom: 14px; animation: popIn .25s ease both; }
+    @keyframes popIn { from { opacity: 0; transform: scale(.92) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .blank-row label { display: block; font-size: .85rem; font-family: 'Bangers', cursive; letter-spacing: 1.5px; color: var(--blue); margin-bottom: 3px; }
+    .blank-row input { width: 100%; font-family: 'Patrick Hand', cursive; font-size: 1.05rem; padding: 7px 12px; border: var(--border); background: #fff; color: var(--ink); outline: none; box-shadow: 3px 3px 0 var(--ink); transition: transform .1s, box-shadow .1s; border-radius: 0; }
+    .blank-row input:focus { transform: translate(-2px,-2px); box-shadow: 5px 5px 0 var(--blue); border-color: var(--blue); }
+    .blank-row input.error { border-color: var(--red); box-shadow: 3px 3px 0 var(--red); }
+
+    /* Buttons */
+    .btn-row { padding: 14px 20px; border-top: var(--border); display: flex; gap: 12px; background: #fff8e8; }
+    .btn { font-family: 'Bangers', cursive; font-size: 1.25rem; letter-spacing: 2px; padding: 10px 22px; border: var(--border); cursor: pointer; box-shadow: var(--shadow); transition: transform .1s, box-shadow .1s; outline: none; }
+    .btn:hover  { transform: translate(-2px,-2px); box-shadow: 7px 7px 0 var(--ink); }
+    .btn:active { transform: translate(3px,3px);   box-shadow: 2px 2px 0 var(--ink); }
+    .btn-generate { background: var(--yellow); color: var(--ink); }
+    .btn-reset    { background: #eee; color: var(--ink); }
+
+    /* Output */
+    .output-container { padding: 20px 24px; flex: 1; overflow-y: auto; max-height: 70vh; line-height: 1.75; font-size: 1.1rem; }
+    .output-placeholder { color: #aaa; font-style: italic; font-size: 1rem; text-align: center; margin-top: 60px; }
+    .output-title { font-family: 'Permanent Marker', cursive; font-size: 1.6rem; color: var(--red); margin-bottom: 16px; text-shadow: 2px 2px 0 #ffd0d4; }
+    .output-body { white-space: pre-wrap; }
+    .answer-word { color: var(--red); font-family: 'Permanent Marker', cursive; font-size: 1.05em; background: #fff3c4; padding: 0 3px; border-bottom: 2px solid var(--red); display: inline-block; animation: answerPop .3s cubic-bezier(.36,.07,.19,.97) both; }
+    @keyframes answerPop { 0% { transform: scale(0.5) rotate(-4deg); opacity: 0; } 70% { transform: scale(1.15) rotate(1deg); } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }
+
+    /* Speech bubble */
+    .speech-bubble { position: relative; background: var(--yellow); border: var(--border); box-shadow: var(--shadow); padding: 18px 22px; margin: 40px auto; width: fit-content; max-width: 280px; text-align: center; font-family: 'Bangers', cursive; font-size: 1.2rem; letter-spacing: 2px; color: var(--ink); }
+    .speech-bubble::after  { content: ''; position: absolute; bottom: -22px; left: 36px; border: 11px solid transparent; border-top-color: var(--ink); }
+    .speech-bubble::before { content: ''; position: absolute; bottom: -16px; left: 38px; border: 9px solid transparent; border-top-color: var(--yellow); z-index: 1; }
+
+    /* Loading */
+    .loading-dots span { display: inline-block; animation: bounce .6s infinite alternate; }
+    .loading-dots span:nth-child(2) { animation-delay: .15s; }
+    .loading-dots span:nth-child(3) { animation-delay: .3s; }
+    @keyframes bounce { to { transform: translateY(-6px); } }
+
+    /* ── Login Modal ── */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(26,10,0,.6); z-index: 500; display: flex; align-items: center; justify-content: center; animation: fadeIn .2s; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal { background: var(--paper); border: var(--border); box-shadow: var(--shadow-lg); padding: 32px 36px; min-width: 320px; text-align: center; position: relative; animation: modalPop .25s cubic-bezier(.36,.07,.19,.97); }
+    @keyframes modalPop { from { transform: scale(.85) rotate(-2deg); opacity: 0; } to { transform: scale(1) rotate(0deg); opacity: 1; } }
+    .modal h2 { font-family: 'Bangers', cursive; font-size: 2rem; letter-spacing: 3px; color: var(--red); margin-bottom: 8px; }
+    .modal p  { font-size: .95rem; color: #666; margin-bottom: 18px; }
+    .modal input { width: 100%; font-family: 'Patrick Hand', cursive; font-size: 1.1rem; padding: 10px 14px; border: var(--border); background: #fff; outline: none; box-shadow: 3px 3px 0 var(--ink); margin-bottom: 14px; border-radius: 0; }
+    .modal input:focus { box-shadow: 3px 3px 0 var(--blue); border-color: var(--blue); }
+    .modal-error { color: var(--red); font-size: .9rem; margin-bottom: 8px; min-height: 20px; }
+
+    /* ── Achievement Toast ── */
+    #toastArea { position: fixed; bottom: 24px; right: 24px; z-index: 600; display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
+    .toast { background: var(--ink); color: var(--yellow); border: 3px solid var(--yellow); box-shadow: var(--shadow); padding: 14px 18px; font-family: 'Bangers', cursive; font-size: 1.1rem; letter-spacing: 1.5px; display: flex; align-items: center; gap: 12px; max-width: 320px; animation: toastIn .4s cubic-bezier(.36,.07,.19,.97) both; }
+    @keyframes toastIn { from { transform: translateX(120%) rotate(3deg); opacity: 0; } to { transform: translateX(0) rotate(0deg); opacity: 1; } }
+    .toast.hiding { animation: toastOut .3s ease forwards; }
+    @keyframes toastOut { to { transform: translateX(120%); opacity: 0; } }
+    .toast-emoji { font-size: 1.6rem; }
+    .toast-text small { display: block; font-family: 'Patrick Hand', cursive; font-size: .8rem; color: #ccc; letter-spacing: 0; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f0e8d0; border-left: 2px solid var(--ink); }
+    ::-webkit-scrollbar-thumb { background: var(--ink); }
+
+    footer { text-align: center; padding: 20px; font-size: .85rem; color: #888; border-top: 2px dashed #ccc; margin-top: 20px; }
+    footer a { color: var(--blue); text-decoration: none; font-weight: bold; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">✦ Mad <span>Libs!</span> ✦</div>
+  <div class="header-right" id="headerRight">
+    <button class="btn-sm" onclick="showLoginModal()">👤 LOGIN</button>
+  </div>
+</header>
+
+<div class="story-bar">
+  <label>CHOOSE YOUR STORY:</label>
+  <select class="story-select" id="storySelect">
+    <option value="">-- loading... --</option>
+  </select>
+</div>
+
+<main class="main">
+  <div class="panel">
+    <div class="panel-header left-color">
+      📝 FILL IN THE BLANKS <span class="badge" id="blankCount">0</span>
+    </div>
+    <div class="blanks-container" id="blanksContainer">
+      <div class="speech-bubble">Pick a story to get started!</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-generate" onclick="generate()">▶ GENERATE!</button>
+      <button class="btn btn-reset"    onclick="resetForm()">↺ RESET</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header right-color">📖 YOUR STORY</div>
+    <div class="output-container" id="outputContainer">
+      <div class="output-placeholder">Your hilarious story will appear here...</div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Add stories via .txt files in <strong>stories/</strong> &nbsp;|&nbsp;
+  <a href="/achievements">🏅 View Achievements</a>
+</footer>
+
+<div id="toastArea"></div>
+
+<!-- Login Modal -->
+<div class="modal-backdrop" id="loginModal" style="display:none" onclick="closeModalOnBackdrop(event)">
+  <div class="modal">
+    <h2>🎭 JOIN THE FUN!</h2>
+    <p>Enter a username to track your achievements</p>
+    <div class="modal-error" id="loginError"></div>
+    <input type="text" id="usernameInput" placeholder="your username..." maxlength="30"
+           onkeydown="if(event.key==='Enter') doLogin()" />
+    <button class="btn btn-generate" style="width:100%" onclick="doLogin()">LET'S GO!</button>
+  </div>
+</div>
+
+<script>
+  let currentSlug = null, currentBlanks = [], currentUser = null;
+
+  // ── Init ──────────────────────────────────────────────────
+  async function init() {
+    const res  = await fetch('/api/me');
+    const data = await res.json();
+    if (data.user) setUser(data.user);
+    loadStoryList();
+  }
+
+  function setUser(user) {
+    currentUser = user;
+    document.getElementById('headerRight').innerHTML = `
+      <span class="user-info">👤 ${escHtml(user.username)}</span>
+      <a href="/achievements" class="btn-sm outline">🏅 BADGES</a>
+      <button class="btn-sm outline" onclick="doLogout()">LOGOUT</button>
+    `;
+  }
+
+  // ── Auth ──────────────────────────────────────────────────
+  function showLoginModal() {
+    document.getElementById('loginModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('usernameInput').focus(), 50);
+  }
+  function closeModalOnBackdrop(e) {
+    if (e.target.id === 'loginModal') document.getElementById('loginModal').style.display = 'none';
+  }
+
+  async function doLogin() {
+    const username = document.getElementById('usernameInput').value.trim();
+    if (!username) { document.getElementById('loginError').textContent = 'Please enter a username!'; return; }
+    const res  = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username}) });
+    const data = await res.json();
+    if (data.error) { document.getElementById('loginError').textContent = data.error; return; }
+    setUser(data);
+    document.getElementById('loginModal').style.display = 'none';
+    showToast('🎉', 'Welcome back!', `Logged in as ${data.username}`);
+  }
+
+  async function doLogout() {
+    await fetch('/api/logout', { method:'POST' });
+    currentUser = null;
+    document.getElementById('headerRight').innerHTML = `<button class="btn-sm" onclick="showLoginModal()">👤 LOGIN</button>`;
+  }
+
+  // ── Stories ───────────────────────────────────────────────
+  async function loadStoryList() {
+    const res  = await fetch('/api/stories');
+    const list = await res.json();
+    const sel  = document.getElementById('storySelect');
+    sel.innerHTML = '<option value="">-- choose a story --</option>';
+    list.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.slug; opt.textContent = s.title;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function loadStory(slug) {
+    if (!slug) {
+      document.getElementById('blanksContainer').innerHTML = '<div class="speech-bubble">Pick a story to get started!</div>';
+      document.getElementById('blankCount').textContent = '0';
+      document.getElementById('outputContainer').innerHTML = '<div class="output-placeholder">Your hilarious story will appear here...</div>';
+      currentSlug = null; currentBlanks = []; return;
+    }
+    document.getElementById('blanksContainer').innerHTML = '<div style="padding:30px;text-align:center" class="loading-dots"><span>●</span><span>●</span><span>●</span></div>';
+    const res  = await fetch(`/api/stories/${slug}`);
+    const data = await res.json();
+    currentSlug = data.slug; currentBlanks = data.blanks;
+    document.getElementById('blankCount').textContent = data.blanks.length;
+    const container = document.getElementById('blanksContainer');
+    container.innerHTML = '';
+    data.blanks.forEach((placeholder, i) => {
+      const parts = placeholder.split(':');
+      const kind  = parts[0].trim();
+      const hint  = parts[1] ? parts[1].trim() : '';
+      const label = kind.charAt(0).toUpperCase() + kind.slice(1) + (hint ? `  (${hint})` : '');
+      const row   = document.createElement('div');
+      row.className = 'blank-row'; row.style.animationDelay = `${i*40}ms`;
+      row.innerHTML = `<label>${i+1}. ${label}</label><input type="text" id="blank_${i}" placeholder="enter a ${kind}..." onkeydown="handleKey(event,${i})" />`;
+      container.appendChild(row);
+    });
+    const first = document.getElementById('blank_0');
+    if (first) first.focus();
+    document.getElementById('outputContainer').innerHTML = '<div class="output-placeholder">Fill in the blanks and hit GENERATE!</div>';
+  }
+
+  function handleKey(e, idx) {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const next = document.getElementById(`blank_${idx+1}`);
+      if (next) next.focus(); else generate();
+    }
+  }
+
+  // ── Generate ──────────────────────────────────────────────
+  async function generate() {
+    if (!currentSlug) return;
+    let allFilled = true;
+    const answers = currentBlanks.map((_, i) => {
+      const input = document.getElementById(`blank_${i}`);
+      const val   = input.value.trim();
+      if (!val) { input.classList.add('error'); input.addEventListener('input', () => input.classList.remove('error'), {once:true}); allFilled = false; }
+      return val;
+    });
+    if (!allFilled) { for (let i=0;i<answers.length;i++) { if (!answers[i]) { document.getElementById(`blank_${i}`).focus(); break; } } return; }
+
+    const res  = await fetch('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({slug:currentSlug, answers}) });
+    const data = await res.json();
+    renderStory(data.title, data.story, answers);
+
+    // Show achievement toasts
+    if (data.new_achievements && data.new_achievements.length) {
+      data.new_achievements.forEach((a, i) => {
+        setTimeout(() => showToast(a.emoji, `ACHIEVEMENT UNLOCKED!`, a.name + ' — ' + a.desc), i * 600);
+      });
+    }
+  }
+
+  function renderStory(title, story, answers) {
+    const output = document.getElementById('outputContainer');
+    let html = `<div class="output-title">${escHtml(title)}</div><div class="output-body">`;
+    let remaining = story;
+    for (const ans of answers) {
+      const idx = remaining.indexOf(ans);
+      if (idx === -1) continue;
+      html += escHtml(remaining.slice(0, idx));
+      html += `<span class="answer-word">${escHtml(ans)}</span>`;
+      remaining = remaining.slice(idx + ans.length);
+    }
+    html += escHtml(remaining) + '</div>';
+    output.innerHTML = html;
+    output.scrollTop = 0;
+  }
+
+  function resetForm() {
+    currentBlanks.forEach((_, i) => { const inp = document.getElementById(`blank_${i}`); if(inp){inp.value='';inp.classList.remove('error');} });
+    const first = document.getElementById('blank_0'); if(first) first.focus();
+    document.getElementById('outputContainer').innerHTML = '<div class="output-placeholder">Fill in the blanks and hit GENERATE!</div>';
+  }
+
+  // ── Toasts ────────────────────────────────────────────────
+  function showToast(emoji, title, subtitle) {
+    const area  = document.getElementById('toastArea');
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `<div class="toast-emoji">${emoji}</div><div class="toast-text">${escHtml(title)}<small>${escHtml(subtitle)}</small></div>`;
+    area.appendChild(toast);
+    setTimeout(() => { toast.classList.add('hiding'); setTimeout(() => toast.remove(), 350); }, 4000);
+  }
+
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  document.getElementById('storySelect').addEventListener('change', e => loadStory(e.target.value));
+  init();
+</script>
+</body>
+</html>

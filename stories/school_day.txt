@@ -1,0 +1,3 @@
+title: A Day at School
+---
+Today at {noun:school subject} class, my teacher {noun:person's name} walked in wearing a {adjective} {noun:piece of clothing} on their head. Everyone started to {verb} loudly. The teacher slammed a {adjective} {noun:object} on the desk and yelled, "{exclamation}!" We were supposed to write an essay about {noun:place}, but instead my friend {noun:person's name} started {verb ending in -ing} in the back of the room. The principal, who smelled like {noun:food}, ran in and tripped over a {noun:object}. By the end of the day, our class had earned {number} gold stars and a pizza shaped like a {noun:animal}. Best. School day. {exclamation}.
