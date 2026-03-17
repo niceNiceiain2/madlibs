@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = "madlibs-secret-key-change-in-production"
+app.secret_key = os.environ.get("SECRET_KEY", "madlibs-secret-key-change-in-production")
 
 STORIES_DIR = os.path.join(os.path.dirname(__file__), "stories")
 DB_PATH     = os.path.join(os.path.dirname(__file__), "madlibs.db")
@@ -289,4 +289,4 @@ def api_delete_story(story_id):
     return jsonify({"ok": True})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=int(os.environ.get("PORT", 5000)))
