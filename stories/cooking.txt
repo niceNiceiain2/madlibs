@@ -1,0 +1,3 @@
+title: Cooking Catastrophe
+---
+Welcome to {noun:person's name}'s cooking show! Today we're making a {adjective} {noun:food} surprise. First, take {number} cups of {noun:food} and {verb} them in a {adjective} bowl. Add {number} tablespoons of {noun:liquid} and stir {verb ending in -ing}ly for {number} minutes. The mixture should look {adjective} and smell like {noun:smell}. Next, {verb} the whole thing into a pan and cook at {number} degrees until it turns {adjective}. While waiting, {verb} the kitchen and yell "{exclamation}!" when it's ready. Garnish with fresh {noun:food} and serve to {number} {adjective} guests. They will all {verb} in amazement at your {adjective} creation!

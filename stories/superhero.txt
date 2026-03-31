@@ -1,0 +1,3 @@
+title: Superhero Showdown
+---
+The city of {noun:city name} was under attack by the evil villain {noun:funny name}, who had stolen a {adjective} {noun:object} from the museum. It was up to Captain {noun:person's name} to save the day! Using their incredible power of {verb ending in -ing}, the hero {verb:past tense} across the sky at {number} miles per hour. "{exclamation}!" yelled the villain, throwing {number} {adjective} {noun:plural object} at the hero. But Captain {noun:person's name} dodged them all by {verb ending in -ing} behind a {adjective} {noun:building}. In the end, the villain was defeated and the whole city {verb:past tense} with joy. The mayor awarded our hero a {adjective} medal shaped like a {noun:animal}.
