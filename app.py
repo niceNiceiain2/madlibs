@@ -4,34 +4,32 @@ import os
 import glob
 import sqlite3
 import json
+import hashlib
+import secrets
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "madlibs-secret-key-change-in-production")
+app.secret_key = "novalib-secret-key-change-in-production"
 
 STORIES_DIR = os.path.join(os.path.dirname(__file__), "stories")
-DB_PATH     = os.path.join(os.path.dirname(__file__), "madlibs.db")
+DB_PATH     = os.path.join(os.path.dirname(__file__), "novalib.db")
 
 # ── All achievements ──────────────────────────────────────────────────────────
 ACHIEVEMENTS = [
-    # Word-choice based
-    {"id": "banana",      "emoji": "🍌", "name": "Going Bananas",      "desc": 'Used "banana" as an answer',           "secret": False},
-    {"id": "pizza",       "emoji": "🍕", "name": "Pizza Party",         "desc": 'Used "pizza" as an answer',            "secret": False},
-    {"id": "potato",      "emoji": "🥔", "name": "Couch Potato",        "desc": 'Used "potato" as an answer',           "secret": False},
-    {"id": "dinosaur",    "emoji": "🦕", "name": "Jurassic Word",       "desc": 'Used "dinosaur" as an answer',         "secret": False},
-    {"id": "pickle",      "emoji": "🥒", "name": "In a Pickle",         "desc": 'Used "pickle" as an answer',           "secret": False},
-    {"id": "ninja",       "emoji": "🥷", "name": "Ninja Mode",          "desc": 'Used "ninja" as an answer',            "secret": False},
-    {"id": "spaghetti",   "emoji": "🍝", "name": "Spaghetti Western",   "desc": 'Used "spaghetti" as an answer',        "secret": False},
-    {"id": "unicorn",     "emoji": "🦄", "name": "Believe in Magic",    "desc": 'Used "unicorn" as an answer',          "secret": False},
-    {"id": "butt",        "emoji": "🍑", "name": "Potty Humor",         "desc": 'Used "butt" as an answer',             "secret": True},
-    {"id": "flamingo",    "emoji": "🦩", "name": "Fancy Footwork",      "desc": 'Used "flamingo" as an answer',         "secret": False},
-    # Story completion milestones
-    {"id": "first_story", "emoji": "⭐", "name": "First Story!",        "desc": "Generated your very first Mad Lib",    "secret": False},
-    {"id": "5_stories",   "emoji": "🌟", "name": "Story Teller",        "desc": "Generated 5 Mad Libs",                 "secret": False},
-    {"id": "10_stories",  "emoji": "🏆", "name": "Mad Lib Master",      "desc": "Generated 10 Mad Libs",                "secret": False},
-    # Variety
-    {"id": "all_stories", "emoji": "📚", "name": "Full Collection",     "desc": "Played every available story",         "secret": False},
-    # Silly combos
+    {"id": "banana",      "emoji": "🍌", "name": "Going Bananas",      "desc": 'Used "banana" as an answer',                "secret": False},
+    {"id": "pizza",       "emoji": "🍕", "name": "Pizza Party",         "desc": 'Used "pizza" as an answer',                 "secret": False},
+    {"id": "potato",      "emoji": "🥔", "name": "Couch Potato",        "desc": 'Used "potato" as an answer',                "secret": False},
+    {"id": "dinosaur",    "emoji": "🦕", "name": "Jurassic Word",       "desc": 'Used "dinosaur" as an answer',              "secret": False},
+    {"id": "pickle",      "emoji": "🥒", "name": "In a Pickle",         "desc": 'Used "pickle" as an answer',                "secret": False},
+    {"id": "ninja",       "emoji": "🥷", "name": "Ninja Mode",          "desc": 'Used "ninja" as an answer',                 "secret": False},
+    {"id": "spaghetti",   "emoji": "🍝", "name": "Spaghetti Western",   "desc": 'Used "spaghetti" as an answer',             "secret": False},
+    {"id": "unicorn",     "emoji": "🦄", "name": "Believe in Magic",    "desc": 'Used "unicorn" as an answer',               "secret": False},
+    {"id": "butt",        "emoji": "🍑", "name": "Potty Humor",         "desc": 'Used "butt" as an answer',                  "secret": True},
+    {"id": "flamingo",    "emoji": "🦩", "name": "Fancy Footwork",      "desc": 'Used "flamingo" as an answer',              "secret": False},
+    {"id": "first_story", "emoji": "⭐", "name": "First Story!",        "desc": "Generated your very first NovaLib",         "secret": False},
+    {"id": "5_stories",   "emoji": "🌟", "name": "Story Teller",        "desc": "Generated 5 NovaLibs",                      "secret": False},
+    {"id": "10_stories",  "emoji": "🏆", "name": "NovaLib Master",      "desc": "Generated 10 NovaLibs",                     "secret": False},
+    {"id": "all_stories", "emoji": "📚", "name": "Full Collection",     "desc": "Played every available story",              "secret": False},
     {"id": "food_frenzy", "emoji": "🍔", "name": "Food Frenzy",         "desc": "Used 3+ different food words in one story", "secret": False},
 ]
 
@@ -39,6 +37,21 @@ FOOD_WORDS = {"banana","pizza","potato","pickle","spaghetti","taco","burger","do
               "waffle","sushi","hotdog","meatball","pancake","burrito","cupcake","lasagna"}
 
 ACHIEVEMENT_MAP = {a["id"]: a for a in ACHIEVEMENTS}
+
+# ── Password hashing ──────────────────────────────────────────────────────────
+def hash_password(password: str) -> str:
+    """Hash a password using SHA-256 with a random salt."""
+    salt = secrets.token_hex(32)
+    pw_hash = hashlib.sha256((salt + password).encode()).hexdigest()
+    return f"{salt}:{pw_hash}"
+
+def verify_password(password: str, stored: str) -> bool:
+    """Verify a password against a stored hash."""
+    try:
+        salt, pw_hash = stored.split(":")
+        return hashlib.sha256((salt + password).encode()).hexdigest() == pw_hash
+    except Exception:
+        return False
 
 # ── DB setup ──────────────────────────────────────────────────────────────────
 def get_db():
@@ -52,6 +65,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
                 username  TEXT UNIQUE NOT NULL,
+                password  TEXT NOT NULL,
                 created   TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS user_achievements (
@@ -106,8 +120,6 @@ def fill_template(template, answers):
 def check_achievements(user_id, answers, slug, db):
     answers_lower = [a.lower().strip() for a in answers]
     earned = []
-
-    # Existing achievements
     existing = {r["achievement"] for r in
                 db.execute("SELECT achievement FROM user_achievements WHERE user_id=?", (user_id,))}
 
@@ -117,7 +129,6 @@ def check_achievements(user_id, answers, slug, db):
                        (user_id, aid, datetime.utcnow().isoformat()))
             earned.append(ACHIEVEMENT_MAP[aid])
 
-    # Word-choice achievements
     word_achievements = {
         "banana": "banana", "pizza": "pizza", "potato": "potato",
         "dinosaur": "dinosaur", "pickle": "pickle", "ninja": "ninja",
@@ -128,12 +139,10 @@ def check_achievements(user_id, answers, slug, db):
         if any(word in ans for ans in answers_lower):
             award(aid)
 
-    # Food frenzy
     foods_used = {a for a in answers_lower if any(f in a for f in FOOD_WORDS)}
     if len(foods_used) >= 3:
         award("food_frenzy")
 
-    # Story count milestones
     stats = db.execute("SELECT stories_played, slugs_played FROM user_stats WHERE user_id=?",
                        (user_id,)).fetchone()
     if stats:
@@ -151,7 +160,6 @@ def check_achievements(user_id, answers, slug, db):
     if count >= 5:  award("5_stories")
     if count >= 10: award("10_stories")
 
-    # All stories
     all_slugs = {s["slug"] for s in load_stories()}
     if all_slugs and all_slugs <= slugs_set:
         award("all_stories")
@@ -168,17 +176,51 @@ def index():
 def achievements_page():
     return render_template("achievements.html")
 
-# User
+@app.route("/history")
+def history_page():
+    return render_template("history.html")
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+@app.route("/api/register", methods=["POST"])
+def api_register():
+    data     = request.get_json()
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+
+    if not username or len(username) > 30:
+        return jsonify({"error": "Username must be 1-30 characters"}), 400
+    if not password or len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    pw_hash = hash_password(password)
+    with get_db() as db:
+        existing = db.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+        if existing:
+            return jsonify({"error": "Username already taken"}), 400
+        db.execute("INSERT INTO users (username, password, created) VALUES (?,?,?)",
+                   (username, pw_hash, datetime.utcnow().isoformat()))
+        db.commit()
+        user = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+
+    session["user_id"]  = user["id"]
+    session["username"] = user["username"]
+    return jsonify({"id": user["id"], "username": user["username"]})
+
 @app.route("/api/login", methods=["POST"])
 def api_login():
-    username = request.get_json().get("username", "").strip()
-    if not username or len(username) > 30:
-        return jsonify({"error": "Invalid username"}), 400
+    data     = request.get_json()
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+
+    if not username or not password:
+        return jsonify({"error": "Username and password required"}), 400
+
     with get_db() as db:
-        db.execute("INSERT OR IGNORE INTO users (username, created) VALUES (?,?)",
-                   (username, datetime.utcnow().isoformat()))
         user = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
-        db.commit()
+
+    if not user or not verify_password(password, user["password"]):
+        return jsonify({"error": "Incorrect username or password"}), 401
+
     session["user_id"]  = user["id"]
     session["username"] = user["username"]
     return jsonify({"id": user["id"], "username": user["username"]})
@@ -194,7 +236,7 @@ def api_me():
         return jsonify({"user": None})
     return jsonify({"user": {"id": session["user_id"], "username": session["username"]}})
 
-# Stories
+# ── Stories ───────────────────────────────────────────────────────────────────
 @app.route("/api/stories")
 def api_stories():
     return jsonify([{"slug": s["slug"], "title": s["title"]} for s in load_stories()])
@@ -235,7 +277,7 @@ def api_generate():
 
     return jsonify({"error": "Story not found"}), 404
 
-# Achievements
+# ── Achievements ──────────────────────────────────────────────────────────────
 @app.route("/api/achievements")
 def api_achievements():
     if "user_id" not in session:
@@ -256,11 +298,7 @@ def api_stats():
                          (session["user_id"],)).fetchone()
     return jsonify({"stories_played": row["stories_played"] if row else 0})
 
-# History
-@app.route("/history")
-def history_page():
-    return render_template("history.html")
-
+# ── History ───────────────────────────────────────────────────────────────────
 @app.route("/api/history")
 def api_history():
     if "user_id" not in session:
@@ -289,4 +327,4 @@ def api_delete_story(story_id):
     return jsonify({"ok": True})
 
 if __name__ == "__main__":
-    app.run(debug=True, port=int(os.environ.get("PORT", 5000)))
+    app.run(debug=True)
