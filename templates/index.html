@@ -30,14 +30,17 @@
     .story-select { font-family: 'Patrick Hand', cursive; font-size: 1rem; padding: 6px 36px 6px 14px; border: var(--border); background: var(--paper); color: var(--ink); box-shadow: var(--shadow); cursor: pointer; outline: none; border-radius: 0; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M0 0l6 8 6-8z' fill='%231a0a00'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; transition: transform .1s, box-shadow .1s; }
     .story-select:hover { transform: translate(-2px,-2px); box-shadow: 7px 7px 0 var(--ink); }
 
-    .main { display: grid; grid-template-columns: 1fr 1fr; gap: 0; max-width: 1300px; margin: 28px auto; padding: 0 24px; }
-    @media (max-width: 820px) { .main { grid-template-columns: 1fr; } }
+    /* 3 column grid */
+    .main { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; max-width: 1400px; margin: 28px auto; padding: 0 24px; }
+    @media (max-width: 1100px) { .main { grid-template-columns: 1fr 1fr; } .leaderboard-panel { display: none; } }
+    @media (max-width: 820px)  { .main { grid-template-columns: 1fr; } }
 
     .panel { background: var(--panel-bg); border: var(--border); box-shadow: var(--shadow-lg); margin: 8px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
     .panel::before { content: ''; position: absolute; top: 0; right: 0; width: 80px; height: 80px; background-image: radial-gradient(circle, rgba(0,0,0,.08) 1px, transparent 1px); background-size: 8px 8px; pointer-events: none; }
     .panel-header { font-family: 'Bangers', cursive; font-size: 1.4rem; letter-spacing: 3px; padding: 10px 18px; border-bottom: var(--border); display: flex; align-items: center; gap: 10px; }
     .panel-header.left-color  { background: var(--red);   color: #fff; }
     .panel-header.right-color { background: var(--green); color: #fff; }
+    .panel-header.blue-color  { background: var(--blue);  color: #fff; }
     .badge { display: inline-block; background: var(--ink); color: var(--yellow); font-family: 'Bangers', cursive; font-size: .85rem; letter-spacing: 1px; padding: 2px 8px; border-radius: 20px; margin-left: 6px; }
 
     .blanks-container { padding: 16px 20px; flex: 1; overflow-y: auto; max-height: 60vh; }
@@ -71,7 +74,21 @@
     .loading-dots span:nth-child(3) { animation-delay: .3s; }
     @keyframes bounce { to { transform: translateY(-6px); } }
 
-    /* ── Auth Modal ── */
+    /* Leaderboard panel */
+    .leaderboard-container { flex: 1; overflow-y: auto; max-height: 65vh; }
+    .lb-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 2px solid #e8e0cc; transition: background .1s; }
+    .lb-row:hover { background: #fff8e8; }
+    .lb-row.is-you { background: #fff3c4; }
+    .lb-rank { font-family: 'Bangers', cursive; font-size: 1.2rem; color: var(--blue); width: 36px; flex-shrink: 0; }
+    .lb-rank.gold   { color: #FFD700; }
+    .lb-rank.silver { color: #A0A0A0; }
+    .lb-rank.bronze { color: #CD7F32; }
+    .lb-name { font-family: 'Bangers', cursive; font-size: 1rem; letter-spacing: 1px; flex: 1; }
+    .lb-you  { background: var(--red); color: #fff; font-family: 'Bangers', cursive; font-size: .65rem; letter-spacing: 1px; padding: 1px 5px; border: 1px solid var(--ink); margin-left: 4px; display: inline-block; }
+    .lb-score { font-size: .9rem; color: var(--blue); font-weight: bold; white-space: nowrap; }
+    .lb-empty { padding: 30px; text-align: center; color: #aaa; font-style: italic; }
+
+    /* Auth Modal */
     .modal-backdrop { position: fixed; inset: 0; background: rgba(26,10,0,.6); z-index: 500; display: flex; align-items: center; justify-content: center; animation: fadeIn .2s; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     .modal { background: var(--paper); border: var(--border); box-shadow: var(--shadow-lg); padding: 32px 36px; min-width: 340px; text-align: center; position: relative; animation: modalPop .25s cubic-bezier(.36,.07,.19,.97); }
@@ -84,7 +101,7 @@
     .modal-toggle { text-align: center; font-size: .9rem; margin-top: 4px; }
     .modal-toggle a { color: var(--blue); font-weight: bold; cursor: pointer; }
 
-    /* ── Toast ── */
+    /* Toast */
     #toastArea { position: fixed; bottom: 24px; right: 24px; z-index: 600; display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
     .toast { background: var(--ink); color: var(--yellow); border: 3px solid var(--yellow); box-shadow: var(--shadow); padding: 14px 18px; font-family: 'Bangers', cursive; font-size: 1.1rem; letter-spacing: 1.5px; display: flex; align-items: center; gap: 12px; max-width: 320px; animation: toastIn .4s cubic-bezier(.36,.07,.19,.97) both; }
     @keyframes toastIn { from { transform: translateX(120%) rotate(3deg); opacity: 0; } to { transform: translateX(0) rotate(0deg); opacity: 1; } }
@@ -120,6 +137,8 @@
 </div>
 
 <main class="main">
+
+  <!-- Left Panel: Blanks -->
   <div class="panel">
     <div class="panel-header left-color">
       📝 FILL IN THE BLANKS <span class="badge" id="blankCount">0</span>
@@ -133,18 +152,33 @@
     </div>
   </div>
 
+  <!-- Middle Panel: Story Output -->
   <div class="panel">
     <div class="panel-header right-color">📖 YOUR STORY</div>
     <div class="output-container" id="outputContainer">
       <div class="output-placeholder">Your hilarious story will appear here...</div>
     </div>
   </div>
+
+  <!-- Right Panel: Leaderboard -->
+  <div class="panel leaderboard-panel">
+    <div class="panel-header blue-color">
+      🏆 LEADERBOARD
+    </div>
+    <div class="leaderboard-container" id="leaderboardContainer">
+      <div style="padding:30px;text-align:center" class="loading-dots">
+        <span>●</span><span>●</span><span>●</span>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <footer>
   Add stories via .txt files in <strong>stories/</strong> &nbsp;|&nbsp;
   <a href="/achievements">🏅 Achievements</a> &nbsp;|&nbsp;
-  <a href="/history">📜 My Stories</a>
+  <a href="/history">📜 My Stories</a> &nbsp;|&nbsp;
+  <a href="/leaderboard">🏆 Full Leaderboard</a>
 </footer>
 
 <div id="toastArea"></div>
@@ -169,13 +203,14 @@
 
 <script>
   let currentSlug = null, currentBlanks = [], currentUser = null;
-  let authMode = 'register'; // 'register' or 'login'
+  let authMode = 'register';
 
   async function init() {
     const res  = await fetch('/api/me');
     const data = await res.json();
     if (data.user) setUser(data.user);
     loadStoryList();
+    loadLeaderboard();
   }
 
   function setUser(user) {
@@ -185,9 +220,10 @@
       <a href="/achievements" class="btn-sm outline">🏅 BADGES</a>
       <button class="btn-sm outline" onclick="doLogout()">LOGOUT</button>
     `;
+    loadLeaderboard();
   }
 
-  // ── Auth Modal ─────────────────────────────────────────────────────────────
+  // ── Auth ──────────────────────────────────────────────────────────────────
   function showModal(mode) {
     authMode = mode;
     document.getElementById('authModal').style.display = 'flex';
@@ -208,31 +244,19 @@
     setTimeout(() => document.getElementById('usernameInput').focus(), 50);
   }
 
-  function toggleMode() {
-    showModal(authMode === 'register' ? 'login' : 'register');
-  }
-
-  function closeModalOnBackdrop(e) {
-    if (e.target.id === 'authModal') document.getElementById('authModal').style.display = 'none';
-  }
+  function toggleMode() { showModal(authMode === 'register' ? 'login' : 'register'); }
+  function closeModalOnBackdrop(e) { if (e.target.id === 'authModal') document.getElementById('authModal').style.display = 'none'; }
 
   async function doAuth() {
     const username = document.getElementById('usernameInput').value.trim();
     const password = document.getElementById('passwordInput').value.trim();
     const errEl    = document.getElementById('authError');
-
     if (!username) { errEl.textContent = 'Please enter a username!'; return; }
     if (!password) { errEl.textContent = 'Please enter a password!'; return; }
-
     const endpoint = authMode === 'register' ? '/api/register' : '/api/login';
-    const res  = await fetch(endpoint, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({username, password})
-    });
+    const res  = await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username, password}) });
     const data = await res.json();
-
     if (data.error) { errEl.textContent = data.error; return; }
-
     setUser(data);
     document.getElementById('authModal').style.display = 'none';
     document.getElementById('usernameInput').value = '';
@@ -247,9 +271,10 @@
       <button class="btn-sm" onclick="showModal('register')">👤 SIGN UP</button>
       <button class="btn-sm outline" onclick="showModal('login')">LOG IN</button>
     `;
+    loadLeaderboard();
   }
 
-  // ── Stories ────────────────────────────────────────────────────────────────
+  // ── Stories ───────────────────────────────────────────────────────────────
   async function loadStoryList() {
     const res  = await fetch('/api/stories');
     const list = await res.json();
@@ -299,6 +324,7 @@
     }
   }
 
+  // ── Generate ──────────────────────────────────────────────────────────────
   async function generate() {
     if (!currentSlug) return;
     let allFilled = true;
@@ -309,16 +335,15 @@
       return val;
     });
     if (!allFilled) { for (let i=0;i<answers.length;i++) { if (!answers[i]) { document.getElementById(`blank_${i}`).focus(); break; } } return; }
-
     const res  = await fetch('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({slug:currentSlug, answers}) });
     const data = await res.json();
     renderStory(data.title, data.story, answers);
-
     if (data.new_achievements && data.new_achievements.length) {
       data.new_achievements.forEach((a, i) => {
         setTimeout(() => showToast(a.emoji, 'ACHIEVEMENT UNLOCKED!', a.name + ' — ' + a.desc), i * 600);
       });
     }
+    loadLeaderboard();
   }
 
   function renderStory(title, story, answers) {
@@ -343,6 +368,30 @@
     document.getElementById('outputContainer').innerHTML = '<div class="output-placeholder">Fill in the blanks and hit GENERATE!</div>';
   }
 
+  // ── Leaderboard ───────────────────────────────────────────────────────────
+  async function loadLeaderboard() {
+    const res  = await fetch('/api/leaderboard');
+    const data = await res.json();
+    const container = document.getElementById('leaderboardContainer');
+    if (data.length === 0) {
+      container.innerHTML = '<div class="lb-empty">No players yet!<br>Be the first to play!</div>';
+      return;
+    }
+    const medals     = ['🥇','🥈','🥉'];
+    const rankClass  = ['gold','silver','bronze'];
+    container.innerHTML = data.map((p, i) => {
+      const isYou = currentUser && p.username === currentUser.username;
+      return `
+        <div class="lb-row ${isYou ? 'is-you' : ''}">
+          <span class="lb-rank ${rankClass[i] || ''}">${medals[i] || '#'+p.rank}</span>
+          <span class="lb-name">${escHtml(p.username)}${isYou ? '<span class="lb-you">YOU</span>' : ''}</span>
+          <span class="lb-score">${p.stories_played} 📖</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ── Toasts ────────────────────────────────────────────────────────────────
   function showToast(emoji, title, subtitle) {
     const area  = document.getElementById('toastArea');
     const toast = document.createElement('div');
