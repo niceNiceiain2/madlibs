@@ -325,6 +325,30 @@ def api_delete_story(story_id):
                    (story_id, session["user_id"]))
         db.commit()
     return jsonify({"ok": True})
+# ── Leaderboard ───────────────────────────────────────────────────────────────
+@app.route("/leaderboard")
+def leaderboard_page():
+    return render_template("leaderboard.html")
 
+@app.route("/api/leaderboard")
+def api_leaderboard():
+    with get_db() as db:
+        rows = db.execute("""
+            SELECT u.username, 
+                   COALESCE(s.stories_played, 0) as stories_played,
+                   COUNT(a.id) as achievements_earned
+            FROM users u
+            LEFT JOIN user_stats s ON u.id = s.user_id
+            LEFT JOIN user_achievements a ON u.id = a.user_id
+            GROUP BY u.id, u.username, s.stories_played
+            ORDER BY stories_played DESC, achievements_earned DESC
+        """).fetchall()
+    return jsonify([{
+        "rank":                i + 1,
+        "username":            r["username"],
+        "stories_played":      r["stories_played"],
+        "achievements_earned": r["achievements_earned"],
+    } for i, r in enumerate(rows)])
+    
 if __name__ == "__main__":
     app.run(debug=True)
