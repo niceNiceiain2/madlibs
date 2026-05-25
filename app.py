@@ -2,17 +2,16 @@ from flask import Flask, jsonify, render_template, request, session
 import re
 import os
 import glob
-import sqlite3
 import json
 import hashlib
 import secrets
 from datetime import datetime
+from db import get_db, init_db, q, USE_POSTGRES
 
 app = Flask(__name__)
-app.secret_key = "novalib-secret-key-change-in-production"
+app.secret_key = os.environ.get("SECRET_KEY", "novalib-secret-key-change-in-production")
 
 STORIES_DIR = os.path.join(os.path.dirname(__file__), "stories")
-DB_PATH     = os.path.join(os.path.dirname(__file__), "novalib.db")
 
 # ── All achievements ──────────────────────────────────────────────────────────
 ACHIEVEMENTS = [
@@ -38,60 +37,20 @@ FOOD_WORDS = {"banana","pizza","potato","pickle","spaghetti","taco","burger","do
 
 ACHIEVEMENT_MAP = {a["id"]: a for a in ACHIEVEMENTS}
 
+init_db()
+
 # ── Password hashing ──────────────────────────────────────────────────────────
 def hash_password(password: str) -> str:
-    """Hash a password using SHA-256 with a random salt."""
     salt = secrets.token_hex(32)
     pw_hash = hashlib.sha256((salt + password).encode()).hexdigest()
     return f"{salt}:{pw_hash}"
 
 def verify_password(password: str, stored: str) -> bool:
-    """Verify a password against a stored hash."""
     try:
         salt, pw_hash = stored.split(":")
         return hashlib.sha256((salt + password).encode()).hexdigest() == pw_hash
     except Exception:
         return False
-
-# ── DB setup ──────────────────────────────────────────────────────────────────
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    with get_db() as conn:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS users (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                username  TEXT UNIQUE NOT NULL,
-                password  TEXT NOT NULL,
-                created   TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS user_achievements (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id      INTEGER NOT NULL,
-                achievement  TEXT NOT NULL,
-                earned_at    TEXT NOT NULL,
-                UNIQUE(user_id, achievement)
-            );
-            CREATE TABLE IF NOT EXISTS user_stats (
-                user_id        INTEGER PRIMARY KEY,
-                stories_played INTEGER DEFAULT 0,
-                slugs_played   TEXT DEFAULT ''
-            );
-            CREATE TABLE IF NOT EXISTS completed_stories (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id          INTEGER,
-                slug             TEXT NOT NULL,
-                title            TEXT NOT NULL,
-                answers          TEXT NOT NULL,
-                completed_story  TEXT NOT NULL,
-                created_at       TEXT NOT NULL
-            );
-        """)
-
-init_db()
 
 # ── Story helpers ─────────────────────────────────────────────────────────────
 def load_stories():
@@ -117,16 +76,22 @@ def fill_template(template, answers):
     return result
 
 # ── Achievement checker ───────────────────────────────────────────────────────
-def check_achievements(user_id, answers, slug, db):
+def check_achievements(user_id, answers, slug, conn):
+    cur = conn.cursor()
     answers_lower = [a.lower().strip() for a in answers]
     earned = []
-    existing = {r["achievement"] for r in
-                db.execute("SELECT achievement FROM user_achievements WHERE user_id=?", (user_id,))}
+
+    cur.execute(q("SELECT achievement FROM user_achievements WHERE user_id=?"), (user_id,))
+    existing = {row["achievement"] for row in cur.fetchall()}
 
     def award(aid):
         if aid not in existing:
-            db.execute("INSERT OR IGNORE INTO user_achievements (user_id, achievement, earned_at) VALUES (?,?,?)",
-                       (user_id, aid, datetime.utcnow().isoformat()))
+            if USE_POSTGRES:
+                cur.execute(q("INSERT INTO user_achievements (user_id, achievement, earned_at) VALUES (?,?,?) ON CONFLICT DO NOTHING"),
+                            (user_id, aid, datetime.utcnow().isoformat()))
+            else:
+                cur.execute(q("INSERT OR IGNORE INTO user_achievements (user_id, achievement, earned_at) VALUES (?,?,?)"),
+                            (user_id, aid, datetime.utcnow().isoformat()))
             earned.append(ACHIEVEMENT_MAP[aid])
 
     word_achievements = {
@@ -143,18 +108,18 @@ def check_achievements(user_id, answers, slug, db):
     if len(foods_used) >= 3:
         award("food_frenzy")
 
-    stats = db.execute("SELECT stories_played, slugs_played FROM user_stats WHERE user_id=?",
-                       (user_id,)).fetchone()
+    cur.execute(q("SELECT stories_played, slugs_played FROM user_stats WHERE user_id=?"), (user_id,))
+    stats = cur.fetchone()
     if stats:
         count     = stats["stories_played"] + 1
         slugs_set = set(filter(None, stats["slugs_played"].split(","))) | {slug}
-        db.execute("UPDATE user_stats SET stories_played=?, slugs_played=? WHERE user_id=?",
-                   (count, ",".join(slugs_set), user_id))
+        cur.execute(q("UPDATE user_stats SET stories_played=?, slugs_played=? WHERE user_id=?"),
+                    (count, ",".join(slugs_set), user_id))
     else:
         count     = 1
         slugs_set = {slug}
-        db.execute("INSERT INTO user_stats (user_id, stories_played, slugs_played) VALUES (?,?,?)",
-                   (user_id, 1, slug))
+        cur.execute(q("INSERT INTO user_stats (user_id, stories_played, slugs_played) VALUES (?,?,?)"),
+                    (user_id, 1, slug))
 
     if count == 1:  award("first_story")
     if count >= 5:  award("5_stories")
@@ -164,10 +129,11 @@ def check_achievements(user_id, answers, slug, db):
     if all_slugs and all_slugs <= slugs_set:
         award("all_stories")
 
-    db.commit()
+    conn.commit()
+    cur.close()
     return earned
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+# ── Page routes ───────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -179,6 +145,10 @@ def achievements_page():
 @app.route("/history")
 def history_page():
     return render_template("history.html")
+
+@app.route("/leaderboard")
+def leaderboard_page():
+    return render_template("leaderboard.html")
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 @app.route("/api/register", methods=["POST"])
@@ -193,14 +163,19 @@ def api_register():
         return jsonify({"error": "Password must be at least 6 characters"}), 400
 
     pw_hash = hash_password(password)
-    with get_db() as db:
-        existing = db.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
-        if existing:
-            return jsonify({"error": "Username already taken"}), 400
-        db.execute("INSERT INTO users (username, password, created) VALUES (?,?,?)",
-                   (username, pw_hash, datetime.utcnow().isoformat()))
-        db.commit()
-        user = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(q("SELECT id FROM users WHERE username=?"), (username,))
+    if cur.fetchone():
+        cur.close(); conn.close()
+        return jsonify({"error": "Username already taken"}), 400
+
+    cur.execute(q("INSERT INTO users (username, password, created) VALUES (?,?,?)"),
+                (username, pw_hash, datetime.utcnow().isoformat()))
+    conn.commit()
+    cur.execute(q("SELECT id, username FROM users WHERE username=?"), (username,))
+    user = cur.fetchone()
+    cur.close(); conn.close()
 
     session["user_id"]  = user["id"]
     session["username"] = user["username"]
@@ -215,8 +190,11 @@ def api_login():
     if not username or not password:
         return jsonify({"error": "Username and password required"}), 400
 
-    with get_db() as db:
-        user = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(q("SELECT id, username, password FROM users WHERE username=?"), (username,))
+    user = cur.fetchone()
+    cur.close(); conn.close()
 
     if not user or not verify_password(password, user["password"]):
         return jsonify({"error": "Incorrect username or password"}), 401
@@ -264,16 +242,15 @@ def api_generate():
 
             new_achievements = []
             if "user_id" in session:
-                with get_db() as db:
-                    new_achievements = check_achievements(session["user_id"], answers, slug, db)
-                    db.execute(
-                        "INSERT INTO completed_stories (user_id, slug, title, answers, completed_story, created_at) VALUES (?,?,?,?,?,?)",
-                        (session["user_id"], slug, s["title"], json.dumps(answers), filled, datetime.utcnow().isoformat())
-                    )
-                    db.commit()
+                conn = get_db()
+                new_achievements = check_achievements(session["user_id"], answers, slug, conn)
+                cur = conn.cursor()
+                cur.execute(q("INSERT INTO completed_stories (user_id, slug, title, answers, completed_story, created_at) VALUES (?,?,?,?,?,?)"),
+                            (session["user_id"], slug, s["title"], json.dumps(answers), filled, datetime.utcnow().isoformat()))
+                conn.commit()
+                cur.close(); conn.close()
 
-            return jsonify({"story": filled, "title": s["title"],
-                            "new_achievements": new_achievements})
+            return jsonify({"story": filled, "title": s["title"], "new_achievements": new_achievements})
 
     return jsonify({"error": "Story not found"}), 404
 
@@ -282,20 +259,23 @@ def api_generate():
 def api_achievements():
     if "user_id" not in session:
         return jsonify({"achievements": ACHIEVEMENTS, "earned": []})
-    with get_db() as db:
-        rows = db.execute(
-            "SELECT achievement, earned_at FROM user_achievements WHERE user_id=? ORDER BY earned_at",
-            (session["user_id"],)).fetchall()
-    earned = {r["achievement"]: r["earned_at"] for r in rows}
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(q("SELECT achievement, earned_at FROM user_achievements WHERE user_id=? ORDER BY earned_at"),
+                (session["user_id"],))
+    earned = {row["achievement"]: row["earned_at"] for row in cur.fetchall()}
+    cur.close(); conn.close()
     return jsonify({"achievements": ACHIEVEMENTS, "earned": earned})
 
 @app.route("/api/stats")
 def api_stats():
     if "user_id" not in session:
         return jsonify({"stories_played": 0})
-    with get_db() as db:
-        row = db.execute("SELECT stories_played FROM user_stats WHERE user_id=?",
-                         (session["user_id"],)).fetchone()
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(q("SELECT stories_played FROM user_stats WHERE user_id=?"), (session["user_id"],))
+    row = cur.fetchone()
+    cur.close(); conn.close()
     return jsonify({"stories_played": row["stories_played"] if row else 0})
 
 # ── History ───────────────────────────────────────────────────────────────────
@@ -303,52 +283,51 @@ def api_stats():
 def api_history():
     if "user_id" not in session:
         return jsonify({"error": "Not logged in"}), 401
-    with get_db() as db:
-        rows = db.execute(
-            "SELECT id, slug, title, answers, completed_story, created_at FROM completed_stories WHERE user_id=? ORDER BY created_at DESC",
-            (session["user_id"],)).fetchall()
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(q("SELECT id, slug, title, answers, completed_story, created_at FROM completed_stories WHERE user_id=? ORDER BY created_at DESC"),
+                (session["user_id"],))
+    rows = cur.fetchall()
+    cur.close(); conn.close()
     return jsonify([{
-        "id":              r["id"],
-        "slug":            r["slug"],
-        "title":           r["title"],
-        "answers":         json.loads(r["answers"]),
-        "completed_story": r["completed_story"],
-        "created_at":      r["created_at"],
+        "id": r["id"], "slug": r["slug"], "title": r["title"],
+        "answers": json.loads(r["answers"]), "completed_story": r["completed_story"],
+        "created_at": r["created_at"],
     } for r in rows])
 
 @app.route("/api/history/<int:story_id>", methods=["DELETE"])
 def api_delete_story(story_id):
     if "user_id" not in session:
         return jsonify({"error": "Not logged in"}), 401
-    with get_db() as db:
-        db.execute("DELETE FROM completed_stories WHERE id=? AND user_id=?",
-                   (story_id, session["user_id"]))
-        db.commit()
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(q("DELETE FROM completed_stories WHERE id=? AND user_id=?"),
+                (story_id, session["user_id"]))
+    conn.commit()
+    cur.close(); conn.close()
     return jsonify({"ok": True})
-# ── Leaderboard ───────────────────────────────────────────────────────────────
-@app.route("/leaderboard")
-def leaderboard_page():
-    return render_template("leaderboard.html")
 
+# ── Leaderboard ───────────────────────────────────────────────────────────────
 @app.route("/api/leaderboard")
 def api_leaderboard():
-    with get_db() as db:
-        rows = db.execute("""
-            SELECT u.username, 
-                   COALESCE(s.stories_played, 0) as stories_played,
-                   COUNT(a.id) as achievements_earned
-            FROM users u
-            LEFT JOIN user_stats s ON u.id = s.user_id
-            LEFT JOIN user_achievements a ON u.id = a.user_id
-            GROUP BY u.id, u.username, s.stories_played
-            ORDER BY stories_played DESC, achievements_earned DESC
-        """).fetchall()
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT u.username,
+               COALESCE(s.stories_played, 0) as stories_played,
+               COUNT(a.id) as achievements_earned
+        FROM users u
+        LEFT JOIN user_stats s ON u.id = s.user_id
+        LEFT JOIN user_achievements a ON u.id = a.user_id
+        GROUP BY u.id, u.username, s.stories_played
+        ORDER BY stories_played DESC, achievements_earned DESC
+    """)
+    rows = cur.fetchall()
+    cur.close(); conn.close()
     return jsonify([{
-        "rank":                i + 1,
-        "username":            r["username"],
-        "stories_played":      r["stories_played"],
-        "achievements_earned": r["achievements_earned"],
+        "rank": i + 1, "username": r["username"],
+        "stories_played": r["stories_played"], "achievements_earned": r["achievements_earned"],
     } for i, r in enumerate(rows)])
-    
+
 if __name__ == "__main__":
     app.run(debug=True)
