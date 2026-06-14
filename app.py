@@ -61,7 +61,9 @@ def send_reset_email(to_email: str, username: str, reset_link: str) -> bool:
     msg.attach(MIMEText(html, "html"))
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        # timeout prevents the worker from hanging if the SMTP port is blocked
+        # (e.g. Railway blocks outbound SMTP on free/hobby plans). Fails cleanly instead.
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as server:
             server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
             server.sendmail(GMAIL_ADDRESS, to_email, msg.as_string())
         return True
