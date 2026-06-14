@@ -53,6 +53,10 @@ def init_db():
                 created   TEXT NOT NULL
             );
         """)
+        # Add columns for email-based password reset if they don't exist
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_expires TEXT")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS user_achievements (
                 id           SERIAL PRIMARY KEY,
@@ -110,6 +114,12 @@ def init_db():
                 created_at       TEXT NOT NULL
             );
         """)
+        # SQLite needs separate statements to add columns if missing
+        for col in ("email", "reset_token", "reset_expires"):
+            try:
+                cur.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT")
+            except Exception:
+                pass
 
     conn.commit()
     cur.close()

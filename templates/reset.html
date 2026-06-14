@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reset Password — NovaLib</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Patrick+Hand&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1a0a00; --paper: #fef9ec; --yellow: #ffe438;
+      --red: #e8132a; --blue: #1952d3;
+      --border: 3px solid var(--ink); --shadow: 5px 5px 0 var(--ink); --shadow-lg: 8px 8px 0 var(--ink);
+    }
+    body { background-color: var(--paper); background-image: radial-gradient(circle, #ddd 1px, transparent 1px); background-size: 22px 22px; font-family: 'Patrick Hand', cursive; color: var(--ink); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .card { background: var(--paper); border: var(--border); box-shadow: var(--shadow-lg); padding: 36px 40px; max-width: 440px; width: 100%; text-align: center; }
+    .logo { font-family: 'Bangers', cursive; font-size: 2.4rem; letter-spacing: 4px; color: var(--ink); text-shadow: 3px 3px 0 var(--red); margin-bottom: 8px; }
+    .logo span { color: var(--red); text-shadow: 3px 3px 0 var(--blue); }
+    h2 { font-family: 'Bangers', cursive; font-size: 1.6rem; letter-spacing: 2px; color: var(--blue); margin-bottom: 8px; }
+    p  { font-size: .95rem; color: #555; margin-bottom: 18px; }
+    input { width: 100%; font-family: 'Patrick Hand', cursive; font-size: 1.1rem; padding: 11px 14px; border: var(--border); background: #fff; outline: none; box-shadow: 3px 3px 0 var(--ink); margin-bottom: 14px; border-radius: 0; }
+    input:focus { box-shadow: 3px 3px 0 var(--blue); border-color: var(--blue); }
+    .btn { font-family: 'Bangers', cursive; font-size: 1.3rem; letter-spacing: 2px; padding: 12px 28px; border: var(--border); cursor: pointer; box-shadow: var(--shadow); background: var(--yellow); color: var(--ink); width: 100%; transition: transform .1s, box-shadow .1s; }
+    .btn:hover  { transform: translate(-2px,-2px); box-shadow: 7px 7px 0 var(--ink); }
+    .btn:active { transform: translate(3px,3px);   box-shadow: 2px 2px 0 var(--ink); }
+    .msg { min-height: 22px; font-size: .9rem; margin-bottom: 10px; }
+    .msg.error   { color: var(--red); }
+    .msg.success { color: #22a352; font-weight: bold; }
+    a { color: var(--blue); font-weight: bold; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">✦ Nova<span>Lib</span> ✦</div>
+    <h2>RESET YOUR PASSWORD</h2>
+    <p>Enter a new password for your account below.</p>
+    <div class="msg" id="msg"></div>
+    <div id="formArea">
+      <input type="password" id="newPassword" placeholder="new password (min 6 chars)..."
+             onkeydown="if(event.key==='Enter') document.getElementById('confirmPassword').focus()" />
+      <input type="password" id="confirmPassword" placeholder="confirm new password..."
+             onkeydown="if(event.key==='Enter') doReset()" />
+      <button class="btn" onclick="doReset()">RESET PASSWORD</button>
+    </div>
+    <p style="margin-top:18px; margin-bottom:0;"><a href="/">← Back to NovaLib</a></p>
+  </div>
+
+  <script>
+    function getToken() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('token') || '';
+    }
+
+    async function doReset() {
+      const token   = getToken();
+      const pw      = document.getElementById('newPassword').value.trim();
+      const confirm = document.getElementById('confirmPassword').value.trim();
+      const msg     = document.getElementById('msg');
+      msg.className = 'msg';
+
+      if (!token) { msg.classList.add('error'); msg.textContent = 'Invalid reset link. Please request a new one.'; return; }
+      if (!pw || !confirm) { msg.classList.add('error'); msg.textContent = 'Please fill in both fields.'; return; }
+      if (pw.length < 6) { msg.classList.add('error'); msg.textContent = 'Password must be at least 6 characters.'; return; }
+      if (pw !== confirm) { msg.classList.add('error'); msg.textContent = 'Passwords do not match.'; return; }
+
+      const res  = await fetch('/api/reset_password', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ token, new_password: pw })
+      });
+      const data = await res.json();
+
+      if (data.error) { msg.classList.add('error'); msg.textContent = data.error; return; }
+
+      document.getElementById('formArea').style.display = 'none';
+      msg.classList.add('success');
+      msg.textContent = '✅ Password reset! You can now log in with your new password.';
+    }
+
+    // If no token in URL, show an error immediately
+    if (!getToken()) {
+      const msg = document.getElementById('msg');
+      msg.className = 'msg error';
+      msg.textContent = 'No reset token found. Please use the link from your email.';
+    }
+  </script>
+</body>
+</html>

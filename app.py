@@ -5,13 +5,71 @@ import glob
 import json
 import hashlib
 import secrets
-from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime, timedelta
 from db import get_db, init_db, q, USE_POSTGRES
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "novalib-secret-key-change-in-production")
 
 STORIES_DIR = os.path.join(os.path.dirname(__file__), "stories")
+
+# ── Email configuration (set these in Railway as environment variables) ───────
+GMAIL_ADDRESS      = os.environ.get("GMAIL_ADDRESS", "")
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
+# The public base URL of the site, used to build reset links
+APP_BASE_URL       = os.environ.get("APP_BASE_URL", "https://web-production-ca412.up.railway.app")
+
+
+def send_reset_email(to_email: str, username: str, reset_link: str) -> bool:
+    """Send a password reset email via Gmail SMTP. Returns True on success."""
+    if not GMAIL_ADDRESS or not GMAIL_APP_PASSWORD:
+        # Email isn't configured — log to console so local dev still works
+        print(f"[EMAIL NOT CONFIGURED] Would send reset link to {to_email}: {reset_link}")
+        return False
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Reset your NovaLib password"
+    msg["From"]    = f"NovaLib <{GMAIL_ADDRESS}>"
+    msg["To"]      = to_email
+
+    text = (f"Hi {username},\n\n"
+            f"We received a request to reset your NovaLib password.\n"
+            f"Click the link below to choose a new password:\n\n{reset_link}\n\n"
+            f"This link expires in 1 hour. If you didn't request this, you can ignore this email.\n\n"
+            f"— The NovaLib Team")
+
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2 style="color:#e8132a;">✦ NovaLib ✦</h2>
+      <p>Hi <strong>{username}</strong>,</p>
+      <p>We received a request to reset your NovaLib password. Click the button below to choose a new one:</p>
+      <p style="text-align:center; margin: 28px 0;">
+        <a href="{reset_link}" style="background:#ffe438; color:#1a0a00; font-weight:bold;
+           padding: 12px 28px; text-decoration:none; border:2px solid #1a0a00; border-radius:4px;">
+          Reset My Password
+        </a>
+      </p>
+      <p style="color:#666; font-size:13px;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+      <p style="color:#666; font-size:13px;">— The NovaLib Team</p>
+    </div>
+    """
+
+    msg.attach(MIMEText(text, "plain"))
+    msg.attach(MIMEText(html, "html"))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_ADDRESS, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send to {to_email}: {e}")
+        return False
+
+
 
 # ── All achievements ──────────────────────────────────────────────────────────
 ACHIEVEMENTS = [
@@ -156,11 +214,14 @@ def api_register():
     data     = request.get_json()
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
+    email    = data.get("email", "").strip().lower()
 
     if not username or len(username) > 30:
         return jsonify({"error": "Username must be 1-30 characters"}), 400
     if not password or len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters"}), 400
+    if not email or "@" not in email or "." not in email:
+        return jsonify({"error": "Please enter a valid email address"}), 400
 
     pw_hash = hash_password(password)
     conn = get_db()
@@ -170,8 +231,8 @@ def api_register():
         cur.close(); conn.close()
         return jsonify({"error": "Username already taken"}), 400
 
-    cur.execute(q("INSERT INTO users (username, password, created) VALUES (?,?,?)"),
-                (username, pw_hash, datetime.utcnow().isoformat()))
+    cur.execute(q("INSERT INTO users (username, password, created, email) VALUES (?,?,?,?)"),
+                (username, pw_hash, datetime.utcnow().isoformat(), email))
     conn.commit()
     cur.execute(q("SELECT id, username FROM users WHERE username=?"), (username,))
     user = cur.fetchone()
@@ -192,7 +253,7 @@ def api_login():
 
     conn = get_db()
     cur  = conn.cursor()
-    cur.execute(q("SELECT id, username, password FROM users WHERE username=?"), (username,))
+    cur.execute(q("SELECT id, username, password, email FROM users WHERE username=?"), (username,))
     user = cur.fetchone()
     cur.close(); conn.close()
 
@@ -201,7 +262,100 @@ def api_login():
 
     session["user_id"]  = user["id"]
     session["username"] = user["username"]
-    return jsonify({"id": user["id"], "username": user["username"]})
+    needs_email = not user["email"]
+    return jsonify({"id": user["id"], "username": user["username"], "needs_email": needs_email})
+
+
+@app.route("/api/set_email", methods=["POST"])
+def api_set_email():
+    """Existing users without an email on file must add one after logging in."""
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    data  = request.get_json()
+    email = data.get("email", "").strip().lower()
+    if not email or "@" not in email or "." not in email:
+        return jsonify({"error": "Please enter a valid email address"}), 400
+
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(q("UPDATE users SET email=? WHERE id=?"), (email, session["user_id"]))
+    conn.commit()
+    cur.close(); conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/forgot_password", methods=["POST"])
+def api_forgot_password():
+    """Generate a reset token and email it to the user."""
+    data  = request.get_json()
+    email = data.get("email", "").strip().lower()
+    if not email:
+        return jsonify({"error": "Email required"}), 400
+
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(q("SELECT id, username, email FROM users WHERE email=?"), (email,))
+    user = cur.fetchone()
+
+    # Always return success even if no account — don't reveal which emails exist
+    if not user:
+        cur.close(); conn.close()
+        return jsonify({"ok": True})
+
+    token   = secrets.token_urlsafe(32)
+    expires = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+    cur.execute(q("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?"),
+                (token, expires, user["id"]))
+    conn.commit()
+    cur.close(); conn.close()
+
+    reset_link = f"{APP_BASE_URL}/reset?token={token}"
+    send_reset_email(user["email"], user["username"], reset_link)
+    return jsonify({"ok": True})
+
+
+@app.route("/reset")
+def reset_page():
+    """Page where the user lands from the email link to set a new password."""
+    return render_template("reset.html")
+
+
+@app.route("/api/reset_password", methods=["POST"])
+def api_reset_password():
+    """Verify the reset token and set the new password."""
+    data         = request.get_json()
+    token        = data.get("token", "").strip()
+    new_password = data.get("new_password", "").strip()
+
+    if not token or not new_password:
+        return jsonify({"error": "Missing token or password"}), 400
+    if len(new_password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(q("SELECT id, reset_expires FROM users WHERE reset_token=?"), (token,))
+    user = cur.fetchone()
+
+    if not user:
+        cur.close(); conn.close()
+        return jsonify({"error": "Invalid or expired reset link"}), 400
+
+    # Check expiry
+    try:
+        expires = datetime.fromisoformat(user["reset_expires"])
+    except Exception:
+        expires = datetime.utcnow() - timedelta(seconds=1)
+    if datetime.utcnow() > expires:
+        cur.close(); conn.close()
+        return jsonify({"error": "This reset link has expired. Please request a new one."}), 400
+
+    new_hash = hash_password(new_password)
+    cur.execute(q("UPDATE users SET password=?, reset_token=NULL, reset_expires=NULL WHERE id=?"),
+                (new_hash, user["id"]))
+    conn.commit()
+    cur.close(); conn.close()
+    return jsonify({"ok": True})
 
 @app.route("/api/logout", methods=["POST"])
 def api_logout():

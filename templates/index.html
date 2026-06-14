@@ -193,10 +193,42 @@
            onkeydown="if(event.key==='Enter') document.getElementById('passwordInput').focus()" />
     <input type="password" id="passwordInput" placeholder="password (min 6 chars)..."
            onkeydown="if(event.key==='Enter') doAuth()" />
+    <input type="email"    id="emailInput" placeholder="email..."
+           onkeydown="if(event.key==='Enter') doAuth()" />
     <button class="btn btn-generate" style="width:100%;margin-bottom:12px" onclick="doAuth()" id="authBtn">CREATE ACCOUNT</button>
+    <div class="modal-toggle" id="forgotRow" style="display:none;margin-bottom:6px">
+      <a onclick="showModal('forgot')" style="color:#1952d3;font-weight:bold;cursor:pointer;font-size:.85rem;text-decoration:underline">Forgot password?</a>
+    </div>
     <div class="modal-toggle">
       <span id="toggleText">Already have an account?</span>
       <a onclick="toggleMode()"> <span id="toggleLink">LOG IN</span></a>
+    </div>
+  </div>
+</div>
+
+<!-- Set Email Modal (for existing users without an email) -->
+<div class="modal-backdrop" id="emailModal" style="display:none">
+  <div class="modal">
+    <h2>📧 ADD YOUR EMAIL</h2>
+    <p>Please add an email so you can reset your password if you forget it</p>
+    <div class="modal-error" id="setEmailError"></div>
+    <input type="email" id="setEmailInput" placeholder="email..."
+           onkeydown="if(event.key==='Enter') doSetEmail()" />
+    <button class="btn btn-generate" style="width:100%" onclick="doSetEmail()">SAVE EMAIL</button>
+  </div>
+</div>
+
+<!-- Forgot Password Modal -->
+<div class="modal-backdrop" id="forgotModal" style="display:none" onclick="closeForgotOnBackdrop(event)">
+  <div class="modal">
+    <h2>🔑 FORGOT PASSWORD</h2>
+    <p>Enter your email and we'll send you a reset link</p>
+    <div class="modal-error" id="forgotError"></div>
+    <input type="email" id="forgotEmailInput" placeholder="email..."
+           onkeydown="if(event.key==='Enter') doForgotPassword()" />
+    <button class="btn btn-generate" style="width:100%;margin-bottom:12px" onclick="doForgotPassword()">SEND RESET LINK</button>
+    <div class="modal-toggle">
+      <a onclick="showModal('login')" style="color:#1952d3;font-weight:bold;cursor:pointer">← Back to login</a>
     </div>
   </div>
 </div>
@@ -225,43 +257,99 @@
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   function showModal(mode) {
+    // Hide other modals
+    document.getElementById('emailModal').style.display = 'none';
+    document.getElementById('forgotModal').style.display = 'none';
+
+    if (mode === 'forgot') {
+      document.getElementById('authModal').style.display = 'none';
+      document.getElementById('forgotError').textContent = '';
+      document.getElementById('forgotEmailInput').value = '';
+      document.getElementById('forgotModal').style.display = 'flex';
+      setTimeout(() => document.getElementById('forgotEmailInput').focus(), 50);
+      return;
+    }
+
     authMode = mode;
     document.getElementById('authModal').style.display = 'flex';
     document.getElementById('authError').textContent = '';
+    const emailField = document.getElementById('emailInput');
+    const forgotRow  = document.getElementById('forgotRow');
     if (mode === 'login') {
       document.getElementById('modalTitle').textContent    = '👤 WELCOME BACK!';
       document.getElementById('modalSubtitle').textContent = 'Log in to your account';
       document.getElementById('authBtn').textContent       = 'LOG IN';
       document.getElementById('toggleText').textContent    = "Don't have an account?";
       document.getElementById('toggleLink').textContent    = 'SIGN UP';
+      emailField.style.display = 'none';   // no email needed to log in
+      forgotRow.style.display  = 'block';  // show forgot password link
     } else {
       document.getElementById('modalTitle').textContent    = '🎭 JOIN THE FUN!';
       document.getElementById('modalSubtitle').textContent = 'Create an account to track your achievements';
       document.getElementById('authBtn').textContent       = 'CREATE ACCOUNT';
       document.getElementById('toggleText').textContent    = 'Already have an account?';
       document.getElementById('toggleLink').textContent    = 'LOG IN';
+      emailField.style.display = 'block';  // email required to sign up
+      forgotRow.style.display  = 'none';
     }
     setTimeout(() => document.getElementById('usernameInput').focus(), 50);
   }
 
   function toggleMode() { showModal(authMode === 'register' ? 'login' : 'register'); }
   function closeModalOnBackdrop(e) { if (e.target.id === 'authModal') document.getElementById('authModal').style.display = 'none'; }
+  function closeForgotOnBackdrop(e) { if (e.target.id === 'forgotModal') document.getElementById('forgotModal').style.display = 'none'; }
 
   async function doAuth() {
     const username = document.getElementById('usernameInput').value.trim();
     const password = document.getElementById('passwordInput').value.trim();
+    const email    = document.getElementById('emailInput').value.trim();
     const errEl    = document.getElementById('authError');
     if (!username) { errEl.textContent = 'Please enter a username!'; return; }
     if (!password) { errEl.textContent = 'Please enter a password!'; return; }
+    if (authMode === 'register' && !email) { errEl.textContent = 'Please enter an email!'; return; }
+
     const endpoint = authMode === 'register' ? '/api/register' : '/api/login';
-    const res  = await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username, password}) });
+    const body     = authMode === 'register' ? {username, password, email} : {username, password};
+    const res  = await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
     const data = await res.json();
     if (data.error) { errEl.textContent = data.error; return; }
     setUser(data);
     document.getElementById('authModal').style.display = 'none';
     document.getElementById('usernameInput').value = '';
     document.getElementById('passwordInput').value = '';
-    showToast('🎉', authMode === 'register' ? 'Account created!' : 'Welcome back!', `Logged in as ${data.username}`);
+    document.getElementById('emailInput').value = '';
+
+    // Existing user with no email on file? Make them add one.
+    if (data.needs_email) {
+      document.getElementById('setEmailError').textContent = '';
+      document.getElementById('setEmailInput').value = '';
+      document.getElementById('emailModal').style.display = 'flex';
+      setTimeout(() => document.getElementById('setEmailInput').focus(), 50);
+    } else {
+      showToast('🎉', authMode === 'register' ? 'Account created!' : 'Welcome back!', `Logged in as ${data.username}`);
+    }
+  }
+
+  async function doSetEmail() {
+    const email = document.getElementById('setEmailInput').value.trim();
+    const errEl = document.getElementById('setEmailError');
+    if (!email) { errEl.textContent = 'Please enter your email'; return; }
+    const res  = await fetch('/api/set_email', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email}) });
+    const data = await res.json();
+    if (data.error) { errEl.textContent = data.error; return; }
+    document.getElementById('emailModal').style.display = 'none';
+    showToast('📧', 'Email saved!', 'You can now reset your password if needed');
+  }
+
+  async function doForgotPassword() {
+    const email = document.getElementById('forgotEmailInput').value.trim();
+    const errEl = document.getElementById('forgotError');
+    if (!email) { errEl.textContent = 'Please enter your email'; return; }
+    const res  = await fetch('/api/forgot_password', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email}) });
+    const data = await res.json();
+    if (data.error) { errEl.textContent = data.error; return; }
+    document.getElementById('forgotModal').style.display = 'none';
+    showToast('📧', 'Check your email!', 'If that email exists, a reset link is on the way');
   }
 
   async function doLogout() {
