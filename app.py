@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, render_template, request, session
+from flask_cors import CORS
 import re
 import os
 import glob
@@ -13,6 +14,20 @@ from db import get_db, init_db, q, USE_POSTGRES
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "novalib-secret-key-change-in-production")
+
+# Allow the Capacitor mobile app to call this backend with login cookies included.
+CORS(app, supports_credentials=True, origins=[
+    "capacitor://localhost",
+    "http://localhost",
+    "https://localhost",
+    "ionic://localhost",
+])
+
+# Session cookies must be SameSite=None + Secure to flow from the app's webview
+app.config.update(
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True,
+)
 
 STORIES_DIR = os.path.join(os.path.dirname(__file__), "stories")
 
