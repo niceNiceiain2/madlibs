@@ -500,5 +500,42 @@ def api_leaderboard():
         "stories_played": r["stories_played"], "achievements_earned": r["achievements_earned"],
     } for i, r in enumerate(rows)])
 
+
+@app.route("/api/delete_account", methods=["POST"])
+def api_delete_account():
+    """Permanently delete the logged-in user's account and ALL their data."""
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    user_id  = session["user_id"]
+    data     = request.get_json(silent=True) or {}
+    password = data.get("password", "").strip()
+
+    conn = get_db()
+    cur  = conn.cursor()
+
+    # Re-verify the password before destroying anything
+    cur.execute(q("SELECT password FROM users WHERE id=?"), (user_id,))
+    user = cur.fetchone()
+    if not user:
+        cur.close(); conn.close()
+        session.clear()
+        return jsonify({"error": "Account not found"}), 404
+    if not verify_password(password, user["password"]):
+        cur.close(); conn.close()
+        return jsonify({"error": "Incorrect password"}), 401
+
+    # Remove all of the user's data, then the account itself
+    cur.execute(q("DELETE FROM completed_stories WHERE user_id=?"), (user_id,))
+    cur.execute(q("DELETE FROM user_achievements WHERE user_id=?"), (user_id,))
+    cur.execute(q("DELETE FROM user_stats WHERE user_id=?"), (user_id,))
+    cur.execute(q("DELETE FROM users WHERE id=?"), (user_id,))
+    conn.commit()
+    cur.close(); conn.close()
+
+    session.clear()
+    return jsonify({"ok": True})
+
+
 if __name__ == "__main__":
     app.run(debug=True)
